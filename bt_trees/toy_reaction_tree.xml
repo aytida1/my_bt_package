@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4"
+      main_tree_to_execute="main_tree">
+  <BehaviorTree ID="main_tree">
+    <Fallback name="ToyReactionFallback">
+      <Sequence name="HappyIfToyPresent">
+        <Condition name="checkIfToyIsNearBy" ID="IsToyPresentCondition" is_toy_really_present="{bb_toy_present_status}"/>
+        <Action name="JoyfulBark" ID="BarkAction"/>
+      </Sequence>
+      <Action name="SadWhine" ID="WhineAction"/>
+    </Fallback>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel/>
+
+</root>
