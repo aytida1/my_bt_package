@@ -2,8 +2,12 @@
 #define DOCKING_ACTION_HPP_
 
 #include "rclcpp/rclcpp.hpp"
-#include "apriltag_msgs/msg/april_tag_detection_array.hpp"
+// #include "apriltag_msgs/msg/april_tag_detection_array.hpp"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
+#include "geometry_msgs/msg/transform_stamped.hpp"
 #include "geometry_msgs/msg/twist.hpp"
+#include "chrono"
 
 #include "behaviortree_cpp/basic_types.h" // For BT::NodeStatus
 #include "behaviortree_cpp/action_node.h"
@@ -25,13 +29,19 @@ public:
 
 
 private:
-    rclcpp::Subscription<apriltag_msgs::msg::AprilTagDetectionArray>::SharedPtr detection_subscriber_;
+    // rclcpp::Subscription<apriltag_msgs::msg::AprilTagDetectionArray>::SharedPtr detection_subscriber_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_publisher_;
 
-    void callback_function(const apriltag_msgs::msg::AprilTagDetectionArray::SharedPtr msg);
+    void assign_pose();
+
+    // TF2 components for pose between apriltag and camera link
+    std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+    std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
+
+    rclcpp::TimerBase::SharedPtr timer_;
 
     // to store position and orientation of pose between apriltag and camera link
-    double pos_x, pos_y;
+    double how_far, how_shift;
     double ori_x, ori_y, ori_z, ori_w;
 
 
