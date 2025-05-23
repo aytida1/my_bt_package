@@ -3,6 +3,7 @@
 
 #include "behaviortree_cpp/basic_types.h" // For BT::NodeStatus
 #include "geometry_msgs/msg/pose_stamped.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 // For simple actions that complete immediately, we can use SyncActionNode
 #include "behaviortree_cpp/action_node.h" // Defines SyncActionNode
