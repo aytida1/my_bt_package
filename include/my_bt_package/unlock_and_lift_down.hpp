@@ -1,5 +1,5 @@
-#ifndef LIFT_UP_AND_LOCK_HPP_
-#define LIFT_UP_AND_LOCK_HPP_
+#ifndef UNLOCK_AND_LIFT_DOWN_HPP_
+#define UNLOCK_AND_LIFT_DOWN_HPP_
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/float64.hpp"
@@ -10,11 +10,11 @@
 
 namespace MyBTNodes
 {
-class LiftUpAndLockAction : public BT::ThreadedAction, public rclcpp::Node
+class UnlockAndLiftDown : public BT::ThreadedAction, public rclcpp::Node
 {
 public:
     // constructor
-    LiftUpAndLockAction(const std::string& name, const BT::NodeConfiguration& config);
+    UnlockAndLiftDown(const std::string& name, const BT::NodeConfiguration& config);
 
     BT::NodeStatus tick() override;
 
@@ -27,8 +27,8 @@ private:
 
     void action_callback(const sensor_msgs::msg::JointState::SharedPtr msg);
 
-    float lift_base_joint_position = 0.0;
-    float lift_servo_position = 0.0;
+    float lift_base_joint_position;
+    float lift_servo_position;
 };
 
 

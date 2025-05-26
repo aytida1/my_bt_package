@@ -1,5 +1,13 @@
 #include "my_bt_package/goal_reached_condition.hpp"
 
+
+namespace MyBTNodes
+{
+
+    
+ // namespace MyBTNodes
+
+
 // constructor
 GoalReachedCondition::GoalReachedCondition( const std::string& name, const BT::NodeConfiguration& config) 
 : BT::ConditionNode(name, config), has_result_(false)
@@ -40,5 +48,7 @@ BT::NodeStatus GoalReachedCondition::tick()
         default:
             return BT::NodeStatus::RUNNING;
     }
+
+}
 
 }

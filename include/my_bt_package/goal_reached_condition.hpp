@@ -6,6 +6,10 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 
+namespace MyBTNodes
+{
+
+
 class GoalReachedCondition : public BT::ConditionNode
 {
 public:
@@ -29,4 +33,5 @@ private:
     rclcpp_action::ResultCode result_code;
 };
 
+}
 #endif

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4" main_tree_to_execute="main_tree">
+    <BehaviorTree ID="main_tree">
+        <Sequence name="PsToAsrsToPos_Sequence">
+            <Action name="lock_and_lift_up" ID="LiftUpAndLockAction"/>
+            <Action name="send_nav2_staging_pose" ID="SendNav2GoalAction" 
+                    goal_x="2.0" goal_y="1.5" goal_yaw="0.0"/>
+            <Condition name="goal_reached_condition" ID="GoalReachedCondition"/>
+            <Action name="docking_at_asrs" ID="DockingAction"/>
+            <Action name="unlock_and_lift_down" ID="UnlockAndLiftDownAction"/>
+            <Action name="move_backwards" ID="MoveBackwardAction"/>
+            <Action name="go_to_parking" ID="SendNav2GoalAction" 
+                    goal_x="0.0" goal_y="0.0" goal_yaw="0.0"/>
+        </Sequence>
+    </BehaviorTree>
+    
+    <!-- Description of Node Models (used by Groot) -->
+    <TreeNodesModel/>
+</root>
