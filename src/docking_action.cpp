@@ -64,6 +64,8 @@ BT::NodeStatus DockingAction::tick()
             
             how_far = transform.transform.translation.x;
             how_shift = transform.transform.translation.y;
+
+            
             
             // Convert to yaw
             tf2::Quaternion q(
@@ -73,26 +75,26 @@ BT::NodeStatus DockingAction::tick()
                 transform.transform.rotation.w);
             double roll, pitch, yaw;
             tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+
+            RCLCPP_INFO(this->get_logger(), "How far : %f, how shift : %f, yaw : %f", how_far, how_shift, yaw);
             
             // Check if we're close enough (success condition)
-            if (std::abs(how_far) < 0.1 && std::abs(how_shift) < 0.005) {
+            if (std::abs(how_far) < 0.490 && std::abs(how_shift) < 0.003) {
                 // Stop the robot
                 auto stop_msg = geometry_msgs::msg::Twist();
                 vel_publisher_->publish(stop_msg);
                 
                 RCLCPP_INFO(this->get_logger(), "Docking completed successfully!");
                 return BT::NodeStatus::SUCCESS;  // This ends the threaded action
-            } else {
-                return BT::NodeStatus::RUNNING;
-            }
+            } 
             
             // Create velocity command for docking
             auto vel_msg = geometry_msgs::msg::Twist();
             // Calculate distance error (target is 0.1m)
-            double distance_error = how_far - 0.1;
+            double distance_error = how_far - 0.485;
 
             // Linear velocity - proportional control with minimum speed
-            if (distance_error > 0.05) {
+            if (distance_error > 0) {
                 vel_msg.linear.x = std::max(0.05, std::min(0.2, distance_error * 0.8));
             } else if (distance_error < -0.02) {
                 vel_msg.linear.x = std::max(-0.1, distance_error * 0.5);  // Reverse if too close
@@ -106,9 +108,10 @@ BT::NodeStatus DockingAction::tick()
 
             // Target lateral offset is 0 (between +0.005 and -0.005)
             double lateral_error = how_shift;  // Current offset from center
+            double yaw_error = -(1.565+yaw);
 
-            double yaw_correction = -yaw * yaw_weight;
-            double lateral_correction = -lateral_error * lateral_weight;
+            double yaw_correction = -yaw_error * yaw_weight;
+            double lateral_correction = lateral_error * lateral_weight;
 
             // Combine corrections with saturation
             vel_msg.angular.z = std::max(-0.5, std::min(0.5, yaw_correction + lateral_correction));

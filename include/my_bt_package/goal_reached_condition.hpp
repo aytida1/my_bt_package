@@ -1,37 +1,34 @@
-#ifndef GOAL_REACHED_CONDITION_HPP_
-#define GOAL_REACHED_CONDITION_HPP_
-
-#include "behaviortree_cpp/condition_node.h"
-#include "nav2_msgs/action/navigate_to_pose.hpp"
+// In goal_reached_condition.hpp
 #include "rclcpp/rclcpp.hpp"
-#include "rclcpp_action/rclcpp_action.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "action_msgs/msg/goal_status_array.hpp"
+#include "behaviortree_cpp/condition_node.h"
 
 namespace MyBTNodes
 {
 
-
 class GoalReachedCondition : public BT::ConditionNode
 {
 public:
-    using NavigateToPose = nav2_msgs::action::NavigateToPose;
-    using GoalHandle = rclcpp_action::ClientGoalHandle<NavigateToPose>;
-
-    // constuctor
     GoalReachedCondition(const std::string& name, const BT::NodeConfiguration& config);
-
-    static BT::PortsList providedPorts(){
-        return {};
-    }
-
     BT::NodeStatus tick() override;
+    static BT::PortsList providedPorts();
 
 private:
-    bool has_result_;
-    rclcpp_action::Client<NavigateToPose>::SharedPtr client_;
     rclcpp::Node::SharedPtr node_;
-    void handle_result_response(const GoalHandle::WrappedResult &result);
-    rclcpp_action::ResultCode result_code;
+    
+    // Subscribers
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr goal_pose_subscriber_;
+    rclcpp::Subscription<action_msgs::msg::GoalStatusArray>::SharedPtr status_subscriber_;
+    
+    // State variables
+    bool navigation_active_;
+    bool navigation_succeeded_;
+    bool has_received_goal_;
+    
+    // Callbacks
+    void goal_pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg);
+    void status_callback(const action_msgs::msg::GoalStatusArray::SharedPtr msg);
 };
 
-}
-#endif
+} // namespace MyBTNodes

@@ -1,13 +1,15 @@
 #include "my_bt_package/unlock_and_lift_down.hpp"
-
+#include <limits>
 
 namespace MyBTNodes
 {
 
 UnlockAndLiftDown::UnlockAndLiftDown(const std::string& name, const BT::NodeConfiguration& config) 
-    : BT::ThreadedAction(name, config), rclcpp::Node("lift_up_and_lock_action")
+    : BT::ThreadedAction(name, config), rclcpp::Node("unlock_and_lift_down_action"),
+      lift_base_joint_position(0.0),  // Initialize variables
+      lift_servo_position(0.0)
 {
-    RCLCPP_INFO(rclcpp::get_logger("SendNav2goalAction"), "Constructor: Ready to move lift up and lock");
+    RCLCPP_INFO(this->get_logger(), "Constructor: Ready to unlock and lift down");
 
     lift_cmd_publisher_ = this->create_publisher<std_msgs::msg::Float64>("lift_cmd", 10);
     lift_servo_cmd_publisher_ = this->create_publisher<std_msgs::msg::Float64>("lift_servo_cmd", 10);
@@ -20,108 +22,122 @@ UnlockAndLiftDown::UnlockAndLiftDown(const std::string& name, const BT::NodeConf
 
 void UnlockAndLiftDown::action_callback(const sensor_msgs::msg::JointState::SharedPtr msg)
 {
-    lift_base_joint_position = msg->position[2];   
-    // header:
-    //     stamp:
-    //         sec: 112
-    //         nanosec: 308000000
-    //     frame_id: ''
-    //     name:
-    //     - base_left_wheel_joint
-    //     - base_right_wheel_joint
-    //     - lift_base_joint          <----- at index 2
-    //     - lift_servo_motor_left_joint
-    //     - lift_servo_motor_right_joint
-    //     position:
-    //     - 4.3020118396623395e-18
-    //     - 2.1241313321140522e-18
-    //     - -1.1414000126970886e-14
-    //     - 1.069443960180965e-18
-    //     - 2.466652912976766e-19
-    //     velocity:
-    //     - 2.5523648089608082e-18
-    //     - -1.1663304388514098e-18
-    //     - 4.51028106856638e-19
-    //     - 2.169302545893668e-20
-    //     - 2.0770984192131016e-20
-    //     effort:
-    //     - 0.0
-    //     - 0.0
-    //     - 0.0
-    //     - 0.0
-    //     - 0.0
-    //     ---
-
+    // Safe array access with bounds checking
+    if (msg->position.size() >= 4) {
+        lift_base_joint_position = msg->position[2];   // lift_base_joint
+        lift_servo_position = msg->position[3];        // lift_servo_motor_left_joint
+        
+        // Debug logging (comment out after testing)
+        RCLCPP_DEBUG(this->get_logger(), "Joint callback - Lift: %.6f, Servo: %.6f", 
+                    lift_base_joint_position, lift_servo_position);
+    } else {
+        RCLCPP_WARN(this->get_logger(), "Joint state message has insufficient position data");
+    }
 }
 
-BT::PortsList UnlockAndLiftDown::providedPorts(){
-    return {};
+BT::PortsList UnlockAndLiftDown::providedPorts()
+{
+    return {};  // No input/output ports needed
 }
-
 
 BT::NodeStatus UnlockAndLiftDown::tick()
 {
     RCLCPP_INFO(this->get_logger(), "Starting unlock and lift down procedure...");
     
-    // Initialize variables outside the loop
-    double last_servo_cmd_ = std::numeric_limits<double>::quiet_NaN();
-    double last_lift_cmd_ = std::numeric_limits<double>::quiet_NaN();
+    // Initialize variables outside the loop (persistent across iterations)
+    double last_servo_cmd_ = -999.0;
+    double last_lift_cmd_ = -999.0;
+    bool lift_lowered = false;  // Track lift state - first lower lift, then unlock servo
     
     // Main control loop - runs continuously in separate thread
     while (rclcpp::ok()) {
+        // Process ROS callbacks to update joint states
+        rclcpp::spin_some(this->get_node_base_interface());
+        
         std_msgs::msg::Float64 lift_cmd_msg;
         std_msgs::msg::Float64 lift_servo_cmd_msg;
-        bool move_lift_down = false;
         double desired_servo_cmd = 0.0;
         double desired_lift_cmd = 0.0;
-        bool change_status = false;
 
-        // a condition to fix the bug of joint controller
-        if (lift_base_joint_position <= 0.01) {
-            desired_lift_cmd = 0.0;
+        // Reduce logging spam - only log every 10 iterations (0.5 seconds)
+        static int log_counter = 0;
+        bool should_log = (log_counter % 10 == 0);
+        log_counter++;
+
+        if (should_log) {
+            RCLCPP_INFO(this->get_logger(), "Current state - Servo: %.6f, Lift: %.6f, Lift lowered: %s", 
+                        lift_servo_position, lift_base_joint_position, lift_lowered ? "YES" : "NO");
         }
 
-        // move servo to lock position
-        if (lift_servo_position > 0.01) {
-            desired_servo_cmd = -0.5;
-        } else {
-            desired_servo_cmd = 0.0;
-            move_lift_down = true;
+        // PHASE 1: Lower lift first
+        if (!lift_lowered) {
+            if (lift_base_joint_position > 0.01) {
+                desired_lift_cmd = -0.1;  // Move lift down
+                desired_servo_cmd = 0.0;  // Keep servo locked during lowering
+                if (should_log) {
+                    RCLCPP_INFO(this->get_logger(), "PHASE 1: Lowering lift... (%.6f/0.01)", lift_base_joint_position);
+                }
+            } else {
+                // Lift reached bottom position
+                desired_lift_cmd = 0.0;  // Stop lift
+                lift_lowered = true;
+                RCLCPP_INFO(this->get_logger(), "PHASE 1 COMPLETE: Lift lowered to position %.6f", lift_base_joint_position);
+            }
+        }
+        // PHASE 2: Unlock servo after lift is down
+        else {
+            // Keep lift stopped
+            desired_lift_cmd = 0.0;
+            
+            if (lift_servo_position > 0.01) {
+                desired_servo_cmd = -0.5;  // Move servo backward to unlock
+                if (should_log) {
+                    RCLCPP_INFO(this->get_logger(), "PHASE 2: Unlocking servo... (%.6f/0.01)", lift_servo_position);
+                }
+            } else {
+                // Servo reached unlocked position - MISSION COMPLETE
+                desired_servo_cmd = 0.0;  // Stop servo
+                RCLCPP_INFO(this->get_logger(), "PHASE 2 COMPLETE: Servo unlocked at position %.6f", lift_servo_position);
+                
+                // Send final stop commands
+                std_msgs::msg::Float64 stop_msg;
+                stop_msg.data = 0.0;
+                lift_cmd_publisher_->publish(stop_msg);
+                lift_servo_cmd_publisher_->publish(stop_msg);
+                
+                RCLCPP_INFO(this->get_logger(), "MISSION COMPLETE: Unlock and lift down procedure finished successfully!");
+                return BT::NodeStatus::SUCCESS;  // Exit the thread
+            }
         }
 
-        if (move_lift_down && (lift_base_joint_position > 0.01)) {
-            desired_lift_cmd = -0.1;
-        } else {
-            desired_lift_cmd = 0.0;
-            move_lift_down = false;
-            change_status = true;
+        // Safety condition: if lift is already very low, don't command it down further
+        if (lift_base_joint_position <= 0.005) {
+            desired_lift_cmd = std::max(0.0, desired_lift_cmd);  // Only allow upward movement
         }
 
         // Only publish if the command has changed
-        if (std::isnan(last_servo_cmd_) || desired_servo_cmd != last_servo_cmd_) {
+        if (desired_servo_cmd != last_servo_cmd_) {
             lift_servo_cmd_msg.data = desired_servo_cmd;
             lift_servo_cmd_publisher_->publish(lift_servo_cmd_msg);
             last_servo_cmd_ = desired_servo_cmd;
+            RCLCPP_DEBUG(this->get_logger(), "Published servo command: %.3f", desired_servo_cmd);
         }
 
-        if (std::isnan(last_lift_cmd_) || desired_lift_cmd != last_lift_cmd_) {
+        if (desired_lift_cmd != last_lift_cmd_) {
             lift_cmd_msg.data = desired_lift_cmd;
             lift_cmd_publisher_->publish(lift_cmd_msg);
             last_lift_cmd_ = desired_lift_cmd;
+            RCLCPP_DEBUG(this->get_logger(), "Published lift command: %.3f", desired_lift_cmd);
         }
-
-        // Check if action is complete
-        if (change_status) {
-            RCLCPP_INFO(this->get_logger(), "Unlock and lift down completed successfully!");
-            return BT::NodeStatus::SUCCESS;  // Exit the thread
-        } 
 
         // Sleep to avoid consuming too much CPU
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
+    RCLCPP_WARN(this->get_logger(), "Unlock and lift down action exited unexpectedly");
     return BT::NodeStatus::FAILURE;  // If we exit loop without success
 }
 
 
-}
+
+} // namespace MyBTNodes
